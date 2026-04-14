@@ -73,6 +73,29 @@ int main(int argc, char* argv[])
   std::cout << "  Scale       : " << scale << "\n";
 
   // Step 4: Build and apply transform
+  // First scale around the moving image center, then translate
+  ScaleTransformType::ScalesType scales;
+  scales.Fill(scale);
+
+  auto scaleTransform = ScaleTransformType::New();
+  scaleTransform->SetScales(scales);
+  scaleTransform->SetCenter(movingCentroid);
+
+  TranslationTransformType::OutputVectorType translation;
+  translation[0] = tx;
+  translation[1] = ty;
+
+  auto translationTransform = TranslationTransformType::New();
+  translationTransform->Translate(translation);
+
+  // Compose: scale first, then translate
+  auto compositeTransform = CompositeTransformType::New();
+  compositeTransform->AddTransform(scaleTransform);
+  compositeTransform->AddTransform(translationTransform);
+
+  std::cout << "=== Transform built ===\n";
+  std::cout << "  Scale center : (" << movingCentroid[0] << ", " << movingCentroid[1] << ") mm\n";
+
   // Step 5: Resample and write output
   // Step 6: Report residual error
 
