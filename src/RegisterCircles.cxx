@@ -1,9 +1,7 @@
 #include "itkImage.h"
 #include "itkImageFileReader.h"
 #include "itkImageFileWriter.h"
-#include "itkScaleTransform.h"
-#include "itkTranslationTransform.h"
-#include "itkCompositeTransform.h"
+#include "itkAffineTransform.h"
 #include "itkResampleImageFilter.h"
 #include "itkLinearInterpolateImageFunction.h"
 #include <iostream>
@@ -11,15 +9,13 @@
 
 // Type definitions
 constexpr unsigned int Dimension = 2;
-using PixelType  = float;
-using ImageType  = itk::Image<PixelType, Dimension>;
-using ReaderType = itk::ImageFileReader<ImageType>;
-using WriterType = itk::ImageFileWriter<ImageType>;
-using ScaleTransformType       = itk::ScaleTransform<double, Dimension>;
-using TranslationTransformType = itk::TranslationTransform<double, Dimension>;
-using CompositeTransformType   = itk::CompositeTransform<double, Dimension>;
-using ResampleFilterType       = itk::ResampleImageFilter<ImageType, ImageType>;
-using InterpolatorType         = itk::LinearInterpolateImageFunction<ImageType, double>;
+using PixelType       = float;
+using ImageType       = itk::Image<PixelType, Dimension>;
+using ReaderType      = itk::ImageFileReader<ImageType>;
+using WriterType      = itk::ImageFileWriter<ImageType>;
+using AffineTransformType = itk::AffineTransform<double, Dimension>;
+using ResampleFilterType  = itk::ResampleImageFilter<ImageType, ImageType>;
+using InterpolatorType    = itk::LinearInterpolateImageFunction<ImageType, double>;
 
 int main(int argc, char* argv[])
 {
@@ -76,33 +72,37 @@ int main(int argc, char* argv[])
   std::cout << "  Translation : (" << tx << ", " << ty << ") mm\n";
   std::cout << "  Scale       : " << scale << "\n";
 
-  // Step 4: Build composite transform — translate first, then scale
-  TranslationTransformType::OutputVectorType translation;
-  translation[0] = tx;
-  translation[1] = ty;
-  auto translationTransform = TranslationTransformType::New();
-  translationTransform->Translate(translation);
+  // Step 4: Build affine transform
+  // ResampleImageFilter applies the inverse transform internally (fixed -> moving)
+  // so we set up the inverse directly: scale up and translate back
+  auto transform = AffineTransformType::New();
+  transform->SetIdentity();
 
-  ScaleTransformType::ScaleType scales;
-  scales.Fill(scale);
-  auto scaleTransform = ScaleTransformType::New();
-  scaleTransform->SetScale(scales);
-  scaleTransform->SetCenter(fixedCentroid);
+  // Set center of rotation/scaling to the fixed centroid
+  AffineTransformType::InputPointType center;
+  center[0] = fixedCentroid[0];
+  center[1] = fixedCentroid[1];
+  transform->SetCenter(center);
 
-  auto compositeTransform = CompositeTransformType::New();
-  compositeTransform->AddTransform(translationTransform);
-  compositeTransform->AddTransform(scaleTransform);
+  // Scale up (inverse of 0.5 is 2.0)
+  AffineTransformType::MatrixType matrix;
+  matrix.SetIdentity();
+  matrix[0][0] = 1.0 / scale;  // 2.0
+  matrix[1][1] = 1.0 / scale;  // 2.0
+  transform->SetMatrix(matrix);
+
+  // Translate back (inverse translation)
+  AffineTransformType::OutputVectorType invTranslation;
+  invTranslation[0] = -tx;  // +150 mm
+  invTranslation[1] = -ty;  // +150 mm
+  transform->SetTranslation(invTranslation);
 
   std::cout << "=== Transform built ===\n";
 
   // Step 5: Resample moving image into fixed image space and write output
-  // ResampleImageFilter needs the inverse transform (fixed -> moving)
-  auto inverseTransform = CompositeTransformType::New();
-  compositeTransform->GetInverse(inverseTransform);
-
   auto resampler = ResampleFilterType::New();
   resampler->SetInput(movingImage);
-  resampler->SetTransform(inverseTransform);
+  resampler->SetTransform(transform);
   resampler->SetInterpolator(InterpolatorType::New());
   resampler->SetSize(fixedImage->GetLargestPossibleRegion().GetSize());
   resampler->SetOutputOrigin(fixedImage->GetOrigin());
