@@ -78,10 +78,10 @@ int main(int argc, char* argv[])
   std::cout << "  Scale       : " << scale << "\n";
 
   // Step 4: Build composite transform: scale first, then translate
-  ScaleTransformType::ScalesType scales;
+  ScaleTransformType::ScaleType scales;
   scales.Fill(scale);
   auto scaleTransform = ScaleTransformType::New();
-  scaleTransform->SetScales(scales);
+  scaleTransform->SetScale(scales);
   scaleTransform->SetCenter(movingCentroid);
 
   TranslationTransformType::OutputVectorType translation;
