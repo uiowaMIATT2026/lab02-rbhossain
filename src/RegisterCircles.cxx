@@ -4,7 +4,10 @@
 #include "itkScaleTransform.h"
 #include "itkTranslationTransform.h"
 #include "itkCompositeTransform.h"
+#include "itkResampleImageFilter.h"
+#include "itkLinearInterpolateImageFunction.h"
 #include <iostream>
+#include <cmath>
 
 // Type definitions
 constexpr unsigned int Dimension = 2;
@@ -15,6 +18,8 @@ using WriterType = itk::ImageFileWriter<ImageType>;
 using ScaleTransformType       = itk::ScaleTransform<double, Dimension>;
 using TranslationTransformType = itk::TranslationTransform<double, Dimension>;
 using CompositeTransformType   = itk::CompositeTransform<double, Dimension>;
+using ResampleFilterType       = itk::ResampleImageFilter<ImageType, ImageType>;
+using InterpolatorType         = itk::LinearInterpolateImageFunction<ImageType, double>;
 
 // main
 int main(int argc, char* argv[])
@@ -72,11 +77,9 @@ int main(int argc, char* argv[])
   std::cout << "  Translation : (" << tx << ", " << ty << ") mm\n";
   std::cout << "  Scale       : " << scale << "\n";
 
-  // Step 4: Build and apply transform
-  // First scale around the moving image center, then translate
+  // Step 4: Build composite transform: scale first, then translate
   ScaleTransformType::ScalesType scales;
   scales.Fill(scale);
-
   auto scaleTransform = ScaleTransformType::New();
   scaleTransform->SetScales(scales);
   scaleTransform->SetCenter(movingCentroid);
@@ -84,20 +87,40 @@ int main(int argc, char* argv[])
   TranslationTransformType::OutputVectorType translation;
   translation[0] = tx;
   translation[1] = ty;
-
   auto translationTransform = TranslationTransformType::New();
   translationTransform->Translate(translation);
 
-  // Compose: scale first, then translate
   auto compositeTransform = CompositeTransformType::New();
   compositeTransform->AddTransform(scaleTransform);
   compositeTransform->AddTransform(translationTransform);
 
   std::cout << "=== Transform built ===\n";
-  std::cout << "  Scale center : (" << movingCentroid[0] << ", " << movingCentroid[1] << ") mm\n";
 
-  // Step 5: Resample and write output
+  // Step 5: Resample moving image into fixed image space and write output
+  auto resampler = ResampleFilterType::New();
+  resampler->SetInput(movingImage);
+  resampler->SetTransform(compositeTransform);
+  resampler->SetInterpolator(InterpolatorType::New());
+  resampler->SetSize(fixedImage->GetLargestPossibleRegion().GetSize());
+  resampler->SetOutputOrigin(fixedImage->GetOrigin());
+  resampler->SetOutputSpacing(fixedImage->GetSpacing());
+  resampler->SetOutputDirection(fixedImage->GetDirection());
+  resampler->SetDefaultPixelValue(0);
+  resampler->Update();
+
+  auto writer = WriterType::New();
+  writer->SetFileName(outputFile);
+  writer->SetInput(resampler->GetOutput());
+  writer->Update();
+  std::cout << "=== Registered image written to: " << outputFile << " ===\n";
+
   // Step 6: Report residual error
+  // After registration the two centers should coincide which means error should be 0 (or almost)
+  double error = std::sqrt(
+    std::pow(fixedCentroid[0] - (movingCentroid[0] + tx), 2) +
+    std::pow(fixedCentroid[1] - (movingCentroid[1] + ty), 2)
+  );
+  std::cout << "=== Residual center error: " << error << " mm ===\n";
 
   std::cout << "Registration complete.\n";
   return EXIT_SUCCESS;
