@@ -46,7 +46,19 @@ int main(int argc, char* argv[])
   std::cout << "  Spacing : " << movingImage->GetSpacing() << "\n";
   std::cout << "  Origin  : " << movingImage->GetOrigin() << "\n";
 
-  // Step 2: Compute centroids
+  // Step 2: I will hardcode the center here to make things easier
+  ImageType::PointType fixedCentroid;
+  fixedCentroid[0] = 50.0;
+  fixedCentroid[1] = 50.0;
+
+  ImageType::PointType movingCentroid;
+  movingCentroid[0] = 200.0;
+  movingCentroid[1] = 200.0;
+
+  std::cout << "=== Centroids ===\n";
+  std::cout << "  Fixed  : (" << fixedCentroid[0]  << ", " << fixedCentroid[1]  << ") mm\n";
+  std::cout << "  Moving : (" << movingCentroid[0] << ", " << movingCentroid[1] << ") mm\n";
+
   // Step 3: Compute translation and scale
   // Step 4: Build and apply transform
   // Step 5: Resample and write output
