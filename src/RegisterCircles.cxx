@@ -76,22 +76,22 @@ int main(int argc, char* argv[])
   std::cout << "  Translation : (" << tx << ", " << ty << ") mm\n";
   std::cout << "  Scale       : " << scale << "\n";
 
-  // Step 4: Build composite transform — scale first, then translate
-  ScaleTransformType::ScaleType scales;
-  scales.Fill(scale);
-  auto scaleTransform = ScaleTransformType::New();
-  scaleTransform->SetScale(scales);
-  scaleTransform->SetCenter(movingCentroid);
-
+  // Step 4: Build composite transform — translate first, then scale
   TranslationTransformType::OutputVectorType translation;
   translation[0] = tx;
   translation[1] = ty;
   auto translationTransform = TranslationTransformType::New();
   translationTransform->Translate(translation);
 
+  ScaleTransformType::ScaleType scales;
+  scales.Fill(scale);
+  auto scaleTransform = ScaleTransformType::New();
+  scaleTransform->SetScale(scales);
+  scaleTransform->SetCenter(fixedCentroid);
+
   auto compositeTransform = CompositeTransformType::New();
-  compositeTransform->AddTransform(scaleTransform);
   compositeTransform->AddTransform(translationTransform);
+  compositeTransform->AddTransform(scaleTransform);
 
   std::cout << "=== Transform built ===\n";
 
