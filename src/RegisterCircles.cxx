@@ -21,7 +21,6 @@ using CompositeTransformType   = itk::CompositeTransform<double, Dimension>;
 using ResampleFilterType       = itk::ResampleImageFilter<ImageType, ImageType>;
 using InterpolatorType         = itk::LinearInterpolateImageFunction<ImageType, double>;
 
-// main
 int main(int argc, char* argv[])
 {
   if (argc < 4)
@@ -77,7 +76,7 @@ int main(int argc, char* argv[])
   std::cout << "  Translation : (" << tx << ", " << ty << ") mm\n";
   std::cout << "  Scale       : " << scale << "\n";
 
-  // Step 4: Build composite transform: scale first, then translate
+  // Step 4: Build composite transform — scale first, then translate
   ScaleTransformType::ScaleType scales;
   scales.Fill(scale);
   auto scaleTransform = ScaleTransformType::New();
@@ -97,9 +96,13 @@ int main(int argc, char* argv[])
   std::cout << "=== Transform built ===\n";
 
   // Step 5: Resample moving image into fixed image space and write output
+  // ResampleImageFilter needs the inverse transform (fixed -> moving)
+  auto inverseTransform = CompositeTransformType::New();
+  compositeTransform->GetInverse(inverseTransform);
+
   auto resampler = ResampleFilterType::New();
   resampler->SetInput(movingImage);
-  resampler->SetTransform(compositeTransform);
+  resampler->SetTransform(inverseTransform);
   resampler->SetInterpolator(InterpolatorType::New());
   resampler->SetSize(fixedImage->GetLargestPossibleRegion().GetSize());
   resampler->SetOutputOrigin(fixedImage->GetOrigin());
@@ -115,7 +118,6 @@ int main(int argc, char* argv[])
   std::cout << "=== Registered image written to: " << outputFile << " ===\n";
 
   // Step 6: Report residual error
-  // After registration the two centers should coincide which means error should be 0 (or almost)
   double error = std::sqrt(
     std::pow(fixedCentroid[0] - (movingCentroid[0] + tx), 2) +
     std::pow(fixedCentroid[1] - (movingCentroid[1] + ty), 2)
